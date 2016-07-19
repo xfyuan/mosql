@@ -144,22 +144,26 @@ module MoSQL
     end
 
     def fetch_and_delete_dotted(obj, dotted)
-      pieces = dotted.split(".")
-      breadcrumbs = []
-      while pieces.length > 1
-        key = pieces.shift
-        breadcrumbs << [obj, key]
-        obj = obj[key]
-        return nil unless obj.is_a?(Hash)
+      key, rest = dotted.split(".", 2)
+      obj ||= {}
+
+      if key.end_with?("[]")
+        values = obj[key.slice(0...-2)] || []
+        raise "Expected: Array for piece #{ key }, got #{ values.class }" unless values.is_a?(Array)
+
+        return values.map do |v|
+          if rest
+            fetch_and_delete_dotted(v, rest)
+          else
+            v
+          end
+      end
       end
 
-      val = obj.delete(pieces.first)
+      # Base case
+      return obj[key] unless rest
 
-      breadcrumbs.reverse.each do |obj, key|
-        obj.delete(key) if obj[key].empty?
-      end
-
-      val
+      fetch_and_delete_dotted(obj[key], rest)
     end
 
     def fetch_exists(obj, dotted)
