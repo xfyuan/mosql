@@ -46,6 +46,12 @@ module MoSQL
       out = spec.dup
       out[:columns] = to_array(spec.fetch(:columns))
       check_columns!(ns, out)
+
+      out[:related] ||= []
+      out[:related].each do |reltable, details|
+        out[:related][reltable] = to_array(details)
+      end
+
       out
     end
 
@@ -112,6 +118,18 @@ module MoSQL
               column '_extra_props', type
             end
           end
+
+          # Add relational tables
+          collection[:related].each do |reltable, details|
+            db.send(clobber ? :create_table! : :create_table?, reltable) do
+              primary_key :__id
+
+              details.each do |col|
+                column col[:name], col[:type]
+              end
+            end
+          end
+
         end
       end
     end
@@ -126,14 +144,23 @@ module MoSQL
     end
 
     def find_ns(ns)
-      db, collection = ns.split(".", 2)
+      db, collection, relation = ns.split(".")
       unless spec = find_db(db)
         return nil
       end
+
       unless schema = spec[collection]
         log.debug("No mapping for ns: #{ns}")
         return nil
       end
+
+      if schema && relation
+        schema = {
+          :columns => schema[:related][relation],
+          :meta => { :table => relation }
+        }
+      end
+
       schema
     end
 
@@ -249,7 +276,12 @@ module MoSQL
 
       log.debug { "Transformed: #{row.inspect}" }
 
-      row
+      depth = row.select {|r| r.is_a? Array}.map {|r| [r].flatten.length }.max
+      return row unless depth
+
+      # Convert row [a, [b, c], d] into [[a, b, d], [a, c, d]]
+      row.map! {|r| [r].flatten.cycle.take(depth)}
+      row.first.zip(*row.drop(1))
     end
 
     def sanitize(value)
@@ -350,7 +382,7 @@ module MoSQL
       if ns[:meta][:composite_key]
         keys = ns[:meta][:composite_key]
       else
-        keys << ns[:columns].find {|c| c[:source] == '_id'}[:name]
+        keys << ns[:columns].find {|c| c[:source] == '_id' && c[:key] != false}[:name]
       end
 
       return keys

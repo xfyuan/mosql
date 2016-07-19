@@ -131,38 +131,41 @@ module MoSQL
 
     def import_collection(ns, collection, filter)
       log.info("Importing for #{ns}...")
-      count = 0
-      batch = []
-      table = @sql.table_for_ns(ns)
+
+      schema = @schemamap.find_ns!(ns)
+      start    = Time.now
+      sql_time = 0
+
+      writers = Writers.new(schema, ns, :batch => BATCH, :flush => proc do |table_name, local_ns, queue|
+        table = @sql.table_for_ns(local_ns)
+        sql_time += track_time do
+          bulk_upsert(table, local_ns, queue)
+        end
+        elapsed = Time.now - start
+        log.info("Imported #{queue.total} rows (#{elapsed}s, #{sql_time}s SQL)...")
+        exit(0) if @done
+      end)
+
       unless options[:no_drop_tables] || did_truncate[table.first_source]
         table.truncate
         did_truncate[table.first_source] = true
       end
 
-      start    = Time.now
-      sql_time = 0
       collection.find(filter, :batch_size => BATCH) do |cursor|
         with_retries do
           cursor.each do |obj|
-            batch << @schema.transform(ns, obj)
-            count += 1
+            writers[] << @schemamap.transform(ns, obj)
 
-            if batch.length >= BATCH
-              sql_time += track_time do
-                bulk_upsert(table, ns, batch)
+            schema[:related].each do |ns_scope, _|
+              @schemamap.transform([ns, ns_scope].join("."), obj).each do |row|
+                writers[ns_scope] << row
               end
-              elapsed = Time.now - start
-              log.info("Imported #{count} rows (#{elapsed}s, #{sql_time}s SQL)...")
-              batch.clear
-              exit(0) if @done
             end
           end
         end
       end
 
-      unless batch.empty?
-        bulk_upsert(table, ns, batch)
-      end
+      writers.flush
     end
 
     def optail
