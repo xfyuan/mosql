@@ -124,6 +124,8 @@ module MoSQL
         end
       end
 
+      @schema.setup_indexes(@sql.db)
+
       tailer.save_state(start_state) unless options[:skip_tail]
     end
 
@@ -142,13 +144,14 @@ module MoSQL
           bulk_upsert(table, local_ns, queue)
         end
         elapsed = Time.now - start
-        log.info("Imported #{queue.total} rows (#{elapsed}s, #{sql_time}s SQL)...")
+        log.info("Imported %d rows into '%s' (%.1fs, %.1fs SQL)..." % [queue.total, table_name, elapsed, sql_time])
         exit(0) if @done
       end)
 
-      unless options[:no_drop_tables] || did_truncate[table.first_source]
-        table.truncate
-        did_truncate[table.first_source] = true
+      unless options[:no_drop_tables]
+        writers.each_table do |table|
+          @sql.db[table.to_sym].truncate
+        end
       end
 
       collection.find(filter, :batch_size => BATCH) do |cursor|

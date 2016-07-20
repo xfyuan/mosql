@@ -170,6 +170,7 @@ module MoSQL
 
       unless options[:skip_import]
         @streamer.import
+        log.info("Initial import complete.")
       end
 
       unless options[:skip_tail]

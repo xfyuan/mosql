@@ -47,6 +47,9 @@ module MoSQL
       out[:columns] = to_array(spec.fetch(:columns))
       check_columns!(ns, out)
 
+      out[:meta][:indexes] ||= []
+      out[:meta][:indexes] << '_id'
+
       out[:related] ||= []
       out[:related].each do |reltable, details|
         out[:related][reltable] = to_array(details)
@@ -121,8 +124,9 @@ module MoSQL
 
           # Add relational tables
           collection[:related].each do |reltable, details|
+            log.info("Creating table '#{reltable}'...")
             db.send(clobber ? :create_table! : :create_table?, reltable) do
-              primary_key :__id
+              # primary_key :__id
 
               details.each do |col|
                 column col[:name], col[:type]
@@ -130,6 +134,29 @@ module MoSQL
             end
           end
 
+        end
+      end
+    end
+
+    def setup_indexes(db)
+      tables = [@map.values.first.reject { |k, v| k == :meta }]
+      tables.map(&:values).flatten.each do |collection|
+        meta = collection[:meta]
+
+        log.info("Creating indexes on '#{meta[:table]}'...")
+        collection[:columns].each do |col|
+          if meta[:indexes].include?(col[:source])
+            db.add_index meta[:table], col[:name].to_sym, concurrently: true
+          end
+        end
+
+        collection[:related].each do |reltable, details|
+          log.info("Creating indexes on '#{reltable}'...")
+          details.each do |col|
+            if meta[:indexes].include?(col[:source])
+              db.add_index reltable, col[:name].to_sym, concurrently: true
+            end
+          end
         end
       end
     end
