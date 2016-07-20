@@ -184,7 +184,7 @@ module MoSQL
           else
             v
           end
-      end
+        end
       end
 
       # Base case
@@ -259,8 +259,8 @@ module MoSQL
             v = v.map { |it| transform_primitive(it) }
             if col[:array_type]
               v = Sequel.pg_array(v, col[:array_type])
-            else
-              v = JSON.dump(v)
+            # else
+              # v = JSON.dump(v)
             end
           else
             v = transform_primitive(v, type)
