@@ -132,7 +132,7 @@ module MoSQL
     def import_collection(ns, collection, filter)
       log.info("Importing for #{ns}...")
 
-      schema = @schemamap.find_ns!(ns)
+      schema = @schema.find_ns!(ns)
       start    = Time.now
       sql_time = 0
 
@@ -154,10 +154,10 @@ module MoSQL
       collection.find(filter, :batch_size => BATCH) do |cursor|
         with_retries do
           cursor.each do |obj|
-            writers[] << @schemamap.transform(ns, obj)
+            writers[] << @schema.transform(ns, obj)
 
             schema[:related].each do |ns_scope, _|
-              @schemamap.transform([ns, ns_scope].join("."), obj).each do |row|
+              @schema.transform([ns, ns_scope].join("."), obj).each do |row|
                 writers[ns_scope] << row
               end
             end
