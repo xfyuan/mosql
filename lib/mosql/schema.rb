@@ -249,8 +249,7 @@ module MoSQL
     def transform_primitive(v, type=nil)
       case v
       when Hash
-        # v = JSON.dump(Hash[v.map { |k,v| [k.tr('_', ''), transform_primitive(v)] }])
-        v = Hash[v.map { |k,v| [k.tr('_', ''), transform_primitive(v)] }]
+        v = JSON.dump(Hash[v.map { |k,v| [k.tr('_', ''), transform_primitive(v)] }])
       when BSON::ObjectId, Symbol
         v.to_s
       when BSON::Binary
@@ -285,7 +284,7 @@ module MoSQL
           v = fetch_special_source(obj, source, original)
         else
           v = fetch_and_delete_dotted(obj, source)
-          # binding.pry if (ns == 'goldendata_development.contacts' && source == 'phones')
+          # binding.pry if (ns == 'goldendata_development.contacts' && source == 'emails')
           case v
           when Hash
             v = JSON.dump(Hash[v.map { |k,v| [k, transform_primitive(v)] }])
