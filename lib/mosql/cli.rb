@@ -7,8 +7,6 @@ module MoSQL
   class CLI
     include MoSQL::Logging
 
-    BATCH       = 50000
-
     attr_reader :args, :options, :tailer
 
     def self.run(args)
@@ -106,6 +104,10 @@ module MoSQL
         # eg, --oplog-filter '{"ns": {"$regex": "^somedb[0-9]*\\.collection$"}}'
         opts.on("--oplog-filter [filter]", "An additional JSON filter for the oplog query") do |filter|
           @options[:oplog_filter] = JSON.parse(filter)
+        end
+
+        opts.on("--batch [batchsize]", "Define batch size of mongodb query") do |batchsize|
+          @options[:batch] = batchsize.to_i
         end
       end
 

@@ -2,7 +2,7 @@ module MoSQL
   class Streamer
     include MoSQL::Logging
 
-    BATCH = 50000
+    BATCH = 1000
 
     attr_reader :options, :tailer
 
@@ -138,7 +138,8 @@ module MoSQL
       start    = Time.now
       sql_time = 0
 
-      writers = Writers.new(schema, ns, :batch => BATCH, :flush => proc do |table_name, local_ns, queue|
+      batch_size = options[:batch] || BATCH
+      writers = Writers.new(schema, ns, :batch => batch_size, :flush => proc do |table_name, local_ns, queue|
         table = @sql.table_for_ns(local_ns)
         sql_time += track_time do
           bulk_upsert(table, local_ns, queue)
@@ -154,7 +155,7 @@ module MoSQL
         end
       end
 
-      collection.find(filter, :batch_size => BATCH) do |cursor|
+      collection.find(filter, :batch_size => batch_size) do |cursor|
         with_retries do
           cursor.each do |obj|
             writers[] << @schema.transform(ns, obj)
