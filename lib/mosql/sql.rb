@@ -7,7 +7,7 @@ module MoSQL
     def initialize(schema, uri, pgschema=nil)
       @schema = schema
       connect_db(uri, pgschema)
-      @db.extension :pg_array
+      @db.extension :pg_array, :pg_json
     end
 
     def connect_db(uri, pgschema)

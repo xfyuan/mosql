@@ -90,6 +90,7 @@ module MoSQL
           next unless n.is_a?(String)
           meta = collection[:meta]
           composite_key = meta[:composite_key]
+          id_specified = meta[:id].nil? ? true : meta[:id]
           keys = []
           log.info("Creating table '#{meta[:table]}'...")
           db.send(clobber ? :create_table! : :create_table?, meta[:table]) do
@@ -100,14 +101,16 @@ module MoSQL
               end
               column col[:name], col[:type], opts
 
-              if composite_key and composite_key.include?(col[:name])
-                keys << col[:name].to_sym
-              elsif not composite_key and col[:source].to_sym == :_id
-                keys << col[:name].to_sym
+              unless id_specified
+                if composite_key and composite_key.include?(col[:name])
+                  keys << col[:name].to_sym
+                elsif not composite_key and col[:source].to_sym == :_id
+                  keys << col[:name].to_sym
+                end
               end
             end
 
-            primary_key keys
+            primary_key id_specified ? :id : keys
             if meta[:extra_props]
               type =
                 case meta[:extra_props]
@@ -245,6 +248,9 @@ module MoSQL
 
     def transform_primitive(v, type=nil)
       case v
+      when Hash
+        # v = JSON.dump(Hash[v.map { |k,v| [k.tr('_', ''), transform_primitive(v)] }])
+        v = Hash[v.map { |k,v| [k.tr('_', ''), transform_primitive(v)] }]
       when BSON::ObjectId, Symbol
         v.to_s
       when BSON::Binary
@@ -279,6 +285,7 @@ module MoSQL
           v = fetch_special_source(obj, source, original)
         else
           v = fetch_and_delete_dotted(obj, source)
+          # binding.pry if (ns == 'goldendata_development.contacts' && source == 'phones')
           case v
           when Hash
             v = JSON.dump(Hash[v.map { |k,v| [k, transform_primitive(v)] }])
@@ -286,6 +293,8 @@ module MoSQL
             v = v.map { |it| transform_primitive(it) }
             if col[:array_type]
               v = Sequel.pg_array(v, col[:array_type])
+            elsif ['JSON','JSONB'].include? type
+              v = Sequel.send("pg_#{type.downcase}", v)
             # else
               # v = JSON.dump(v)
             end
